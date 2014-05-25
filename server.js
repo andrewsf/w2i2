@@ -1,16 +1,26 @@
 'use strict';
 
 var express = require('express'),
-	http = require('http'),
 	phantom = require('phantom'),
 	MD5 = require('MD5'),
-	fs = require('fs');
+	fs = require('fs'),
+	rimraf = require('rimraf');
 
 var listenPort = 9242;
+
 
 console.log("Starting Phantom JS process...");
 phantom.create(function (ph) {
 	console.log("Phantom JS started.");
+
+	console.log("Cleaning up screenshot directory.");
+	rimraf('screenshots', function (error) {
+		if (error) {
+			console.log("Error cleaning up screenshots");
+		} else {
+			console.log("Screenshot directory is all clean.");
+		}
+	});
 
 	var app = express();
 	app.get('/getimage', function (req, res) {
@@ -33,8 +43,6 @@ phantom.create(function (ph) {
 			width = Math.min(1600, screenDims[0]),
 			height = Math.min(1200, screenDims[1]);
 
-		// TODO pool multiple phantom processes
-
 		// Handle scaling
 		var zoomFactor = 1;
 		if (scaledToHeight > 0) {
@@ -47,10 +55,10 @@ phantom.create(function (ph) {
 			height = height * zoomFactor;
 		}
 
-		var filepath = 'screenshots/' + screenSize + '/' + width + 'x' + height + '/' + MD5(url) + '.png';
-		if (fs.existsSync(filepath)) {
-			console.log("Found image in file system already: " + filepath);
-			res.sendfile(filepath);
+		var filePath = 'screenshots/' + screenSize + '/' + width + 'x' + height + '/' + MD5(url) + '.png';
+		if (fs.existsSync(filePath)) {
+			console.log("Found image in file system already: " + filePath);
+			res.sendfile(filePath);
 			return;
 		}	
 		
@@ -68,11 +76,11 @@ phantom.create(function (ph) {
 					closePage();
 				} else {
 					setTimeout(function () {
-						if (fs.existsSync(filepath)) {
-							console.log("Found image in file system already: " + filepath);
-							imageReady(filepath);
+						if (fs.existsSync(filePath)) {
+							console.log("Found image in file system already: " + filePath);
+							imageReady(filePath);
 						} else {
-							page.render(filepath, { format: 'png', quality: '100' }, imageReady);
+							page.render(filePath, { format: 'png', quality: '100' }, imageReady);
 						}
 
 						function imageReady() {
@@ -82,16 +90,16 @@ phantom.create(function (ph) {
 							res.on("error", cleanup);
 							setTimeout(cleanup, 60000);
 
-							res.sendfile(filepath);
+							res.sendfile(filePath);
 							closePage();
 
-							function cleanup () {
+							function cleanup() {
 								if (!cleanupFinished) {
-									fs.unlink(filepath, function (exc) {
+									fs.unlink(filePath, function (exc) {
 										if (exc) {
-											console.log("Failed to remove file: " + filepath);
+											console.log("Failed to remove file: " + filePath);
 										} else {
-											console.log("Removed file: " + filepath);
+											console.log("Removed file: " + filePath);
 										}
 									});
 									cleanupFinished = true;
