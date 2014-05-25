@@ -1,0 +1,20 @@
+{
+	"name": "w2i2",
+	"version": "0.1.0",
+	"description": "widget2image service, now in node js",
+	"dependencies": {
+		"express": "~4.3.1",
+		"phantomjs": "~1.9.7",
+		"phantom": "~0.6.3",
+		"MD5": "~1.2.1"
+	},
+	"devDependencies": {
+		"gulp": "~3.6.2",
+		"gulp-jshint": "~1.6.1"
+	},
+    "repository": {
+    	"type": "git",
+    	"url": "https://github.com/andrewsf/w2i2.git"
+    },
+    "private": true
+}
