@@ -8,66 +8,56 @@ var express = require('express'),
 
 var listenPort = 9242;
 
-var app = express();
+console.log("Starting Phantom JS process...");
+phantom.create(function (ph) {
+	console.log("Phantom JS started.");
 
-app.get('/getimage', function (req, res) {
-	var query = req.query,
-		url = query.url || "",
-		screenSize = query.screenSize || "1600x1200",
-		scaledToHeight = query.scaledToHeight || -1,
-		scaledToWidth = query.scaledToWidth || -1;
-//		maxFileSize = query.maxFileSize || 700000,
-//		format = query.format || "png";
+	var app = express();
+	app.get('/getimage', function (req, res) {
+		var query = req.query,
+			url = query.url || "",
+			screenSize = query.screenSize || "1600x1200",
+			scaledToHeight = query.scaledToHeight || -1,
+			scaledToWidth = query.scaledToWidth || -1;
+//			maxFileSize = query.maxFileSize || 700000,
+//			format = query.format || "png";
 
-	// Naive validation
-	if (typeof url !== 'string' || url.substr(0, 4) !== 'http' || url.indexOf('://') < 0) {
-		invalidParams();
-		console.log("Invalid URL: " + url);
-		return;
-	}
+		// Naive validation
+		if (typeof url !== 'string' || url.substr(0, 4) !== 'http' || url.indexOf('://') < 0) {
+			invalidParams();
+			console.log("Invalid URL: " + url);
+			return;
+		}
 
-	var screenDims = screenSize.split('x'),
-		width = Math.min(1600, screenDims[0]),
-		height = Math.min(1200, screenDims[1]);
+		var screenDims = screenSize.split('x'),
+			width = Math.min(1600, screenDims[0]),
+			height = Math.min(1200, screenDims[1]);
 
-	// TODO pool multiple phantom processes
-	// TODO create phantom process(es) upfront, before starting up the server
+		// TODO pool multiple phantom processes
 
-	phantom.create(function (ph) {
+		// Handle scaling
+		var zoomFactor = 1;
+		if (scaledToHeight > 0) {
+			zoomFactor = scaledToHeight / height;
+			width = width * zoomFactor;
+			height = scaledToHeight;
+		} else if (scaledToWidth > 0) {
+			zoomFactor = scaledToWidth / width;
+			width = scaledToWidth;
+			height = height * zoomFactor;
+		}
+
+		var filepath = 'screenshots/' + screenSize + '/' + width + 'x' + height + '/' + MD5(url) + '.png';
+		if (fs.existsSync(filepath)) {
+			console.log("Found image in file system already: " + filepath);
+			res.sendfile(filepath);
+			return;
+		}	
+		
 		ph.createPage(function (page) {
-
-			// Handle scaling
-			var zoomFactor = 1;
-			if (scaledToHeight > 0) {
-				zoomFactor = scaledToHeight / height;
-				width = width * zoomFactor;
-				height = scaledToHeight;
-			} else if (scaledToWidth > 0) {
-				zoomFactor = scaledToWidth / width;
-				width = scaledToWidth;
-				height = height * zoomFactor;
-			}
-
-			var filepath = 'screenshots/' + screenSize + '/' + width + 'x' + height + '/' + MD5(url) + '.png';
-			if (fs.existsSync(filepath)) {
-				console.log("Found image in file system already: " + filepath);
-				res.sendfile(filepath);
-				finish();
-				return;
-			}	
-
 			page.set('zoomFactor', zoomFactor);
-
-			page.set('viewportSize', {
-				width: width,
-				height: height
-			});
-			page.set('clipRect', {
-				top: 0,
-				left: 0,
-				width: width,
-				height: height
-			});
+			page.set('viewportSize', { width: width, height: height });
+			page.set('clipRect', { top: 0, left: 0, width: width, height: height });
 
 			page.open(url, function(status) {
 				page.set('navigationLocked', true);
@@ -75,7 +65,7 @@ app.get('/getimage', function (req, res) {
 				if (status !== 'success') {
 					res.send(500, 'Remote request failed');
 					console.log("Failed to load URL: " + url);
-					finish();
+					closePage();
 				} else {
 					setTimeout(function () {
 						if (fs.existsSync(filepath)) {
@@ -93,7 +83,7 @@ app.get('/getimage', function (req, res) {
 							setTimeout(cleanup, 60000);
 
 							res.sendfile(filepath);
-							finish();
+							closePage();
 
 							function cleanup () {
 								if (!cleanupFinished) {
@@ -112,19 +102,18 @@ app.get('/getimage', function (req, res) {
 				}
 			});
 
-			function finish() {
+			function closePage() {
 				setTimeout(function () {
 					page.close();
-					ph.exit();
 				}, 0);
 			}
 		});
+
+		function invalidParams() {
+			res.send(400, 'Invalid request parameters');
+		}
 	});
 
-	function invalidParams() {
-		res.send(400, 'Invalid request parameters');
-	}
+	app.listen(listenPort);
+	console.log("w2i2 is now active and listening on port " + listenPort);
 });
-
-app.listen(listenPort);
-console.log("w2i2 is now active and listening on port " + listenPort);
