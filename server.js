@@ -3,7 +3,8 @@
 var express = require('express'),
 	http = require('http'),
 	phantom = require('phantom'),
-	MD5 = require('MD5');
+	MD5 = require('MD5'),
+	fs = require('fs');
 
 var listenPort = 9242;
 
@@ -14,9 +15,9 @@ app.get('/getimage', function (req, res) {
 		url = query.url || "",
 		screenSize = query.screenSize || "1600x1200",
 		scaledToHeight = query.scaledToHeight || -1,
-		scaledToWidth = query.scaledToWidth || -1,
-		maxFileSize = query.maxFileSize || 700000,
-		format = query.format || "png";
+		scaledToWidth = query.scaledToWidth || -1;
+//		maxFileSize = query.maxFileSize || 700000,
+//		format = query.format || "png";
 
 	// Naive validation
 	if (typeof url !== 'string' || url.substr(0, 4) !== 'http' || url.indexOf('://') < 0) {
@@ -46,6 +47,15 @@ app.get('/getimage', function (req, res) {
 				width = scaledToWidth;
 				height = height * zoomFactor;
 			}
+
+			var filepath = 'screenshots/' + screenSize + '/' + width + 'x' + height + '/' + MD5(url) + '.png';
+			if (fs.existsSync(filepath)) {
+				console.log("Found image in file system already: " + filepath);
+				res.sendfile(filepath);
+				finish();
+				return;
+			}	
+
 			page.set('zoomFactor', zoomFactor);
 
 			page.set('viewportSize', {
@@ -68,18 +78,42 @@ app.get('/getimage', function (req, res) {
 					finish();
 				} else {
 					setTimeout(function () {
-						var filename = 'screenshots/' + MD5(url) + '.png';
-						page.render(filename, { format: 'png', quality: '100' }, function () {
-							res.sendfile(filename);
+						if (fs.existsSync(filepath)) {
+							console.log("Found image in file system already: " + filepath);
+							imageReady(filepath);
+						} else {
+							page.render(filepath, { format: 'png', quality: '100' }, imageReady);
+						}
+
+						function imageReady() {
+							var cleanupFinished = false;
+
+							res.on("end", cleanup);
+							res.on("error", cleanup);
+							setTimeout(cleanup, 60000);
+
+							res.sendfile(filepath);
 							finish();
-						});
+
+							function cleanup () {
+								if (!cleanupFinished) {
+									fs.unlink(filepath, function (exc) {
+										if (exc) {
+											console.log("Failed to remove file: " + filepath);
+										} else {
+											console.log("Removed file: " + filepath);
+										}
+									});
+									cleanupFinished = true;
+								}
+							}
+						}
 					}, 0);
 				}
 			});
 
 			function finish() {
 				setTimeout(function () {
-					//res.send(...);
 					page.close();
 					ph.exit();
 				}, 0);
