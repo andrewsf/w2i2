@@ -26,8 +26,8 @@ app.get('/getimage', function (req, res) {
 	}
 
 	var screenDims = screenSize.split('x'),
-		width = screenDims[0],
-		height = screenDims[1];
+		width = Math.min(1600, screenDims[0]),
+		height = Math.min(1200, screenDims[1]);
 
 	// TODO pool multiple phantom processes
 	// TODO create phantom process(es) upfront, before starting up the server
@@ -35,9 +35,22 @@ app.get('/getimage', function (req, res) {
 	phantom.create(function (ph) {
 		ph.createPage(function (page) {
 
+			// Handle scaling
+			var zoomFactor = 1;
+			if (scaledToHeight > 0) {
+				zoomFactor = scaledToHeight / height;
+				width = width * zoomFactor;
+				height = scaledToHeight;
+			} else if (scaledToWidth > 0) {
+				zoomFactor = scaledToWidth / width;
+				width = scaledToWidth;
+				height = height * zoomFactor;
+			}
+			page.set('zoomFactor', zoomFactor);
+
 			page.set('viewportSize', {
-				width: Math.min(1600, width + 20),
-				height: Math.min(1200, height + 20)
+				width: width,
+				height: height
 			});
 			page.set('clipRect', {
 				top: 0,
@@ -80,3 +93,4 @@ app.get('/getimage', function (req, res) {
 });
 
 app.listen(listenPort);
+console.log("w2i2 is now active and listening on port " + listenPort);

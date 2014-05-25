@@ -7,7 +7,7 @@ A new version of the widget2image service using PhantomJS.
 Installation
 --------------------------------------
 
-Install node and npm.
+[Install node](http://nodejs.org/download/).
 
 Install phantomjs.
 ```bash
@@ -32,5 +32,5 @@ Running
 node server.js
 ```
 
-Now you can use the service like so: http://localhost:9242/getimage?url=http://google.com/
+Now you can use the service like so: [http://localhost:9242/getimage?url=http://google.com/](http://localhost:9242/getimage?url=http://google.com/)
 
